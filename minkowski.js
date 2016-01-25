@@ -25,12 +25,32 @@ function draw_axes (frame, line) {
     return frame.append('path')
         .datum(d)
         .attr('d', line)
-        .attr('stroke', '#000');
+        .attr('stroke', '#bbb');
   });
+}
+
+function place_object (ob_list, x, t, id) {
+  return ob_list.push({x: x, t: t, id: id});
 }
 
 function set_frame_width (frame, w, h) {
   return frame.attr('width', w).attr('height', h)
+}
+
+function render_objects (frame, objects, x, t) {
+  return frame.selectAll('.object')
+      .data(objects, d => d.id)
+      .attr('transform', d => 'translate(' + x(d.x) + ',' + t(d.t) + ')')
+    .enter()
+      .append('g')
+      .attr('class', 'object')
+      .attr('transform', d => 'translate(' + x(d.x) + ',' + t(d.t) + ')')
+      .append('circle')
+      .attr('transform', 'translate(0, -10)')
+      .attr("cx", 0)
+      .attr("cy", 0)
+      .attr("r", 10)
+      .style("fill", 'black');
 }
 
 /* ***************************************************************************** */
@@ -49,5 +69,15 @@ let line = d3.svg.line()
     .y( d => t(d.t) );
 
 draw_axes(frame, line);
+
+// create objects and add objects to world
+let objects = [
+  {x:0, t:0, id:0}, {x:0.7, t:0, id:1}, {x:-0.2, t:0, id:2}, {x:-0.5, t:0, id:3}
+];
+//place_object();
+
+//update_objects(objects)
+render_objects(frame, objects, x, t);
+
 
 };
