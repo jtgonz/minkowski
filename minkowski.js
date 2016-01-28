@@ -44,7 +44,7 @@ function set_frame_width (frame, w, h) {
 }
 
 function render_particles (frame, particles, x, t) {
-  frame.selectAll('.particle')
+  frame.selectAll('g.particle')
       .data(particles, d => d.id)
       .attr('transform', d => 'translate(' + x(d.x) + ',' + t(d.t) + ')')
     .enter()
@@ -57,6 +57,20 @@ function render_particles (frame, particles, x, t) {
       .attr("cy", 0)
       .attr("r", 10)
       .style("fill", 'black');
+  return frame;
+}
+
+function render_worldlines (frame, lines_data, line) {
+  frame.selectAll('g.worldline').select('path')
+      .data(lines_data, d => d.id)
+      .attr('d', d => line(d.hist))
+    .enter()
+      .append('g')
+      .attr('class', 'worldline')
+      .append('path')
+      .attr('d', d => line(d.hist))
+      .attr('stroke', '#ccc')
+      .attr('fill', 'transparent');
   return frame;
 }
 
@@ -88,7 +102,7 @@ function boost (x, t, v) {
 }
 
 function update () {
-  // advance state; update clock, frame, particle, and queue
+  // advance state; update clock, frame, particle, lines, and queue
   update.state = advance_state(update.state);
 }
 
@@ -123,24 +137,44 @@ function advance_state (state) {
     let delta_t = clock - instant_p.e.t;
 
     return {
-      id: reduced_particle.id + "_now", 
+      id: reduced_particle.id, 
       x: instant_p.e.x + instant_p.v * delta_t,
       t: 0
     }
   });
 
-  let frame = state.frame;
-/*
-  frame.selectAll('g.worldline').datum( d => {
-    d.hist.map(a => a - clock_speed).push(particles_now[d.id])
-    // check to see if history is too long, and remove elements if so
-  })
-*/
+  // calculate worldlines
+  let lines = particles_coords.map( particle => {
+    // get x-coordinate of particle at t=clock for the viewer
+    let x = particles_coords.find( p => p.id == particle.id).x;
 
-  // render objects to frame using x and t scales
-  frame = render_particles(frame, particles_coords, x, t);
+    // shift t-coordinates downwards, add new coordinate for current position,
+    // and remove first element if the array is too long. If history is empty for
+    // that particle, start it now.
+    let max_points = 30;
+    return {
+      id: particle.id,
+      hist: (() => {
+        let old = state.lines.find( p => p.id == particle.id );
+        if (old)
+          return ( old.hist
+            .map(a => { return {x: a.x, t: a.t - clock_speed}; })
+            .concat({x: x, t: 0})
+            .slice(old.hist.length > max_points ? 1 : 0) )
+        return [ {x: x, t: 0} ]
+      })()
+    }
+  });
 
-  return {id: id, clock: clock, frame: frame, particles: particles, queue: queue}
+  // render objects and worldlines to frame using x and t scales
+  /*
+  let frame = render_worldlines(
+    render_particles(state.frame, particles_coords, x, t), lines, line);*/
+  let frame = render_particles(state.frame, particles_coords, x, t);
+  frame = render_worldlines(frame, lines, line);
+
+  return {id: id, clock: clock, frame: frame, particles: particles, lines: lines,
+    queue: queue};
 
 }
 
@@ -162,7 +196,7 @@ set_frame_width(frame, x0 * 2, y0 * 2);
 draw_axes(frame, line);
 
 // create particle with one instant in worldline
-let particle = {id: 0, worldline: [ {v: -0.2, e: {x: 0, t: 0}, clock: 0} ]};
+let particle = {id: 0, worldline: [ {v: 0, e: {x: 0, t: 0}, clock: 0} ]};
 let particle_b = {id: 1, worldline: [ {v: -0.2, e: {x: -0.2, t: 0}, clock: 0} ]};
 let particle_c = {id: 2, worldline: [
   {v: 0.2, e: {x: 0, t: 0}, clock: 0},
@@ -170,10 +204,11 @@ let particle_c = {id: 2, worldline: [
 let particle_d = {id: 3, worldline: [
   {v: 0, e: {x: 0.2, t: 0}, clock: 0},
   {v: 0, e: {x: 10, t: 0.2}, clock: 0} ]};
-let particles = [ particle, particle_d ];
+let particles = [ particle, particle_c ];
 
 // set initial state, and begin to travel through worldline of particle
-update.state = {id: 0, clock: 0, frame: frame, particles: particles, queue: []}
+update.state = {id: 0, clock: 0, frame: frame, particles: particles, lines: [],
+  queue: []};
 window.setInterval(update, update_interval);
 
 };
