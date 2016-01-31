@@ -119,7 +119,7 @@ function advance_state (state) {
 
   // Travel along the worldline of each particle, transforming each event into
   // the viewer's reference frame. For each particle, grab the most recent
-  // transformed event (where the t coordinate in less than or equal to the current
+  // transformed event (where the t coordinate is less than or equal to the current
   // clock). Then use that transformed event to find the x position of particle
   let particles_coords = particles.map( particle => {
     return {
@@ -177,6 +177,48 @@ function advance_state (state) {
     queue: queue};
 
 }
+
+
+/* Returns a function with a cache for memoization. Programs written in a
+ * functional style are stateless, so a given set of inputs to a function will
+ * always return the same output, regardless of when/where the functiona is called.
+ * Memoizing the results helps boost performance, since we don't have to run the
+ * computation a second time if we've already done it once.
+ */
+function memoize (fn) {
+  return function memoized (...args) {
+    let hash = JSON.stringify(args);
+    let cache = memoized.cache;
+    // if result exists, return it. otherwise compute and store in cache.
+    return cache[hash] || (cache[hash] = fn.call(...args));
+  }
+  memoized.cache = {};  // initialize empty cache
+}
+
+// where is the particle (in the program's reference frame) when it is age seconds
+// old in the particle reference frame.
+
+/* Given an event in a particle's worldline, how much time has elapsed in the life
+ * of that particle?
+ * In: Particle of interest; index of event in particle's worldline
+ * Out: Age of particle (in it's own time) at that event
+ */
+let get_age_at_event = memoize (function fn (particle, index) {
+  // If this is the first event in the worldline, we return zero. Otherwise, we
+  // calculate delta x and delta t (from the last event to this event) and
+  // compute t prime. We add this to the particle's age at the last event.
+  
+  if (index == 0) return 0;   // base case
+  // TODO handle case where index is invalid
+
+  let delta_t = particle[index].t - particle[index-1].t;
+  let velocity = particle[index-1].v;
+  let delta_x = velocity * delta_t;
+  
+  return fn(particle, index - 1) + lorentz_t(delta_x, delta_t, velocity);
+});
+
+
 
 /* ***************************************************************************** */
 
